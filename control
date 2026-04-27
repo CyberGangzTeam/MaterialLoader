@@ -1,0 +1,9 @@
+Package: com.congcq.matloader
+Name: MaterialLoader
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: An awesome MobileSubstrate tweak!
+Maintainer: congcq
+Author: congcq
+Section: Tweaks
+Depends: mobilesubstrate (>= 0.9.5000)
