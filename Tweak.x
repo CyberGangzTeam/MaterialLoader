@@ -1,5 +1,3 @@
-vậy thì viết cho tôi toàn bộ code thay bằng NSSearchPathForDirectoriesInDomains đi
-
 #import <substrate.h>
 #import <Foundation/Foundation.h>
 
