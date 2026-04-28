@@ -1,5 +1,10 @@
 #import <substrate.h>
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+
+#import "fishhook.h"
+
+#define VERSION "0.0.1"
 
 static NSArray* getActiveResourcePacks(void);
 static NSString* findFileInPack(NSString* packId, NSString* subpack, NSString* fileName);
@@ -165,8 +170,50 @@ static NSString* mergeMaterialsIndex(NSString* originalPath) {
     return mergedPath;
 }
 
-// main
+static void showDialog(NSString* title, NSString* message) {
+    UIAlertController *alert = [UIAlertController 
+        alertControllerWithTitle:title
+        message:message
+        preferredStyle:UIAlertControllerStyleAlert];
+    
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    
+    UIWindow *gameWindow = nil;
+    for (UIScene *scene in [[UIApplication sharedApplication] connectedScenes]) {
+        if ([scene isKindOfClass:[UIWindowScene class]]) {
+            UIWindowScene *windowScene = (UIWindowScene *)scene;
+            for (UIWindow *window in windowScene.windows) {
+                if (window.isKeyWindow) {
+                    gameWindow = window;
+                    break;
+                }
+            }
+            if (!gameWindow) gameWindow = windowScene.windows.firstObject;
+            break;
+        }
+    }
+    
+    UIViewController *rootVC = gameWindow.rootViewController;
+    while (rootVC.presentedViewController) {
+        rootVC = rootVC.presentedViewController;
+    }
+    
+    [rootVC presentViewController:alert animated:YES completion:nil];
+}
+
 %ctor {
-    MSHookFunction((void *)fopen, (void *)hook_fopen, (void **)&orig_fopen);
-    NSLog(@"[MaterialLoader] Successfully loaded");
+    struct rebinding fopen_rebinding = {"fopen", hook_fopen, (void *)&orig_fopen};
+    rebind_symbols(&fopen_rebinding, 1);
+    
+    if (orig_fopen) {
+        NSLog(@"[MaterialLoader] ✅ fopen hooked successfully");
+    } else {
+        NSLog(@"[MaterialLoader] ❌ Failed to hook fopen");
+    }
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        NSString *title = @"Material Loader";
+        NSString *desc = [NSString stringWithFormat:@"Version: %s\nDeveloper: congcq", VERSION];
+        showDialog(title, desc);
+    });
 }
