@@ -8,7 +8,6 @@
 
 static NSArray* getActiveResourcePacks(void);
 static NSString* findFileInPack(NSString* packId, NSString* subpack, NSString* fileName);
-static NSString* mergeMaterialsIndex(NSString* originalPath);
 
 // data path
 static NSString* getResourcePacksPath(void) {
@@ -21,14 +20,6 @@ FILE* (*orig_fopen)(const char *path, const char *mode);
 FILE* hook_fopen(const char *path, const char *mode) {
     if (path != NULL) {
         NSString *nsPath = [NSString stringWithUTF8String:path];
-        
-        // return merged index
-        if ([nsPath hasSuffix:@"materials.index.json"]) {
-            NSString *mergedPath = mergeMaterialsIndex(nsPath);
-            if (mergedPath) {
-                return orig_fopen([mergedPath UTF8String], mode);
-            }
-        }
         
         // load material.bin in pack
         if ([nsPath hasSuffix:@".material.bin"] && [nsPath containsString:@"renderer/materials"]) {
@@ -121,53 +112,6 @@ static NSString* findFileInPack(NSString* packId, NSString* subpack, NSString* f
         }
     }
     return nil;
-}
-
-// merge material.index.json
-static NSString* mergeMaterialsIndex(NSString* originalPath) {
-    NSData *originalData = [NSData dataWithContentsOfFile:originalPath];
-    if (!originalData) return nil;
-    
-    NSDictionary *originalDict = [NSJSONSerialization JSONObjectWithData:originalData options:0 error:nil];
-    if (!originalDict || ![originalDict isKindOfClass:[NSDictionary class]]) return nil;
-    
-    NSArray *originalMaterials = originalDict[@"materials"];
-    if (!originalMaterials) return nil;
-    
-    NSMutableArray *merged = [originalMaterials mutableCopy];
-    
-    // find materials.index.json from pack
-    NSString *customIndexPath = findFileInPack(nil, nil, @"materials.index.json");
-    if (!customIndexPath) {
-        NSLog(@"[MaterialLoader] Does not have materials.index.json in pack");
-        return nil;
-    }
-    
-    NSData *customData = [NSData dataWithContentsOfFile:customIndexPath];
-    NSDictionary *customDict = [NSJSONSerialization JSONObjectWithData:customData options:0 error:nil];
-    NSArray *customMaterials = customDict[@"materials"];
-    
-    for (NSDictionary *entry in customMaterials) {
-        NSString *name = entry[@"name"];
-        BOOL replaced = NO;
-        for (NSInteger i = 0; i < (NSInteger)merged.count; i++) {
-            if ([merged[i][@"name"] isEqualToString:name]) {
-                merged[i] = entry;
-                replaced = YES;
-                break;
-            }
-        }
-        if (!replaced) {
-            [merged addObject:entry];
-        }
-    }
-    
-    NSDictionary *mergedDict = @{@"materials": merged};
-    NSString *mergedPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"materials_merged.json"];
-    NSData *mergedData = [NSJSONSerialization dataWithJSONObject:mergedDict options:NSJSONWritingPrettyPrinted error:nil];
-    [mergedData writeToFile:mergedPath atomically:YES];
-    
-    return mergedPath;
 }
 
 static void showDialog(NSString* title, NSString* message) {
