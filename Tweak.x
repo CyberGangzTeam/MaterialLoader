@@ -4,7 +4,7 @@
 
 #import "fishhook.h"
 
-#define VERSION "1.1"
+#define VERSION "1.2"
 
 static NSArray* getActiveResourcePacks(void);
 static NSString* findFileInPack(NSString* packId, NSString* subpack, NSString* fileName);
