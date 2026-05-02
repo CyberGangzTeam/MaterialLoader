@@ -23,12 +23,16 @@ FILE* hook_fopen(const char *path, const char *mode) {
         NSString *nsPath = [NSString stringWithUTF8String:path];
         
         // load material.bin in pack
-        if ([nsPath hasSuffix:@".material.bin"] && [nsPath containsString:@"renderer/materials"] && [nsPath containsString:@"minecraftpe.app"]) {
-            NSString *fileName = [nsPath lastPathComponent];
-            NSString *customFile = findFileInPack(nil, nil, fileName);
-            if (customFile) {
-                NSLog(@"[MaterialLoader] ✅ Pack: %@", customFile);
-                return orig_fopen([customFile UTF8String], mode);
+        if ([nsPath containsString:@"data/renderer"]) {
+            NSRange rendererRange = [nsPath rangeOfString:@"/renderer/"];
+            if (rendererRange.location != NSNotFound) {
+                NSString *relativePath = [nsPath substringFromIndex:rendererRange.location + 1];
+                
+                NSString *customFile = findFileInPack(nil, nil, relativePath);
+                if (customFile && [[NSFileManager defaultManager] fileExistsAtPath:customFile]) {
+                    NSLog(@"[MaterialLoader] ✅ Pack: %@", customFile);
+                    return orig_fopen([customFile UTF8String], mode);
+                }
             }
         }
     }
@@ -93,16 +97,18 @@ static void buildPackRootCache(void) {
 
 static NSString* findPackRoot(NSString* packId) {
     NSString *cached = packRootCache[packId];
-    if (cached) return cached;
 
-    NSLog(@"[MaterialLoader] Cache miss for %@, rebuilding...", packId);
-    buildPackRootCache();
+    if (!cached) {
+        NSLog(@"[MaterialLoader] Cache miss for %@, rebuilding...", packId);
+        buildPackRootCache();
+        cached = packRootCache[packId];
+    }
 
-    return packRootCache[packId];
+    return cached;
 }
 
 // find .material.bin in pack
-static NSString* findFileInPack(NSString* packId, NSString* subpack, NSString* fileName) {
+static NSString* findFileInPack(NSString* packId, NSString* subpack, NSString* relativePath) {
     NSArray *activePacks = getActiveResourcePacks();
     if (!activePacks) return nil;
     
@@ -118,26 +124,21 @@ static NSString* findFileInPack(NSString* packId, NSString* subpack, NSString* f
         
         // subpacks
         if ([sp isEqualToString:@"default"]) {
-            // default subpack: we find subpacks/default/renderer/materials first. if it does not exist, fallback to renderer/materials
-            NSString *defaultPath = [[[packRoot stringByAppendingPathComponent:@"subpacks/default"]
-                                      stringByAppendingPathComponent:@"renderer/materials"]
-                                      stringByAppendingPathComponent:fileName];
+            // default subpack: we find subpacks/default/renderer first. if it does not exist, fallback to renderer folder
+            NSString *defaultPath = [[packRoot stringByAppendingPathComponent:@"subpacks/default"] stringByAppendingPathComponent:relativePath];
             if ([fm fileExistsAtPath:defaultPath]) {
                 return defaultPath;
             }
         } else {
             // another subpack
-            NSString *subpackPath = [[[packRoot stringByAppendingPathComponent:[NSString stringWithFormat:@"subpacks/%@", sp]]
-                                      stringByAppendingPathComponent:@"renderer/materials"]
-                                      stringByAppendingPathComponent:fileName];
+            NSString *subpackPath = [[packRoot stringByAppendingPathComponent:[NSString stringWithFormat:@"subpacks/%@", sp]] stringByAppendingPathComponent:relativePath];
             if ([fm fileExistsAtPath:subpackPath]) {
                 return subpackPath;
             }
         }
         
 
-        NSString *rootPath = [[packRoot stringByAppendingPathComponent:@"renderer/materials"]
-                              stringByAppendingPathComponent:fileName];
+        NSString *rootPath = [packRoot stringByAppendingPathComponent:relativePath];
         if ([fm fileExistsAtPath:rootPath]) {
             return rootPath;
         }
