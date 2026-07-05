@@ -4,7 +4,7 @@ Looking for [Vietnamese](README_VN.md)?
 
 **HynisLoader** is a jailbreak tweak for iOS that allows Minecraft: Bedrock Edition to load whole `renderer` folder from resource packs, functioning similarly to Draco Injector on Android.
 
-The tweak works with **all Minecraft versions that using the RenderDragon engine**.
+The tweak works with **all Minecraft versions that using the RenderDragon engine (1.18.30 - latest)**.
 
 ## How This Tweak Works
 
