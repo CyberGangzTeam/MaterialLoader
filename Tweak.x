@@ -13,7 +13,6 @@
 #define HLog(...)
 #endif
 
-// HL_NAME / HL_VERSION / HL_AUTHOR are injected by the Makefile from `control`.
 #ifndef HL_NAME
 #define HL_NAME "HynisLoader"
 #endif
@@ -28,20 +27,16 @@ static NSArray* getActiveResourcePacks(void);
 static NSString* findFileInPack(NSString* packId, NSString* subpack, NSString* relativePath);
 static void buildPackRootCache(void);
 
-// Cache snapshots (immutable) guarded by a concurrent queue.
-// - packRootCache: uuid -> packRootPath (directory or archive path)
-// - rendererPackIds: uuids that contain a "renderer/" folder (root or subpacks)
 static NSDictionary *packRootCache = nil;
 static NSSet<NSString *> *rendererPackIds = nil;
 static dispatch_queue_t gPackCacheQueue = nil;
 static atomic_bool gPackCacheRebuildScheduled = ATOMIC_VAR_INIT(false);
 
-// Active packs cache (global_resource_packs.json) + resolved renderer file cache.
 static NSArray *gActivePacksCache = nil;
 static NSDate *gActivePacksMTime = nil;
 static NSNumber *gActivePacksSize = nil;
 static CFAbsoluteTime gActivePacksLastStatCheck = 0.0;
-static NSMutableDictionary<NSString *, id> *gResolvedRendererPathCache = nil; // relativePath -> NSString | NSNull
+static NSMutableDictionary<NSString *, id> *gResolvedRendererPathCache = nil;
 
 // data path
 static NSString* getResourcePacksPath(void) {
@@ -69,7 +64,7 @@ FILE* hook_fopen(const char *path, const char *mode) {
                 
                 NSString *customFile = findFileInPack(nil, nil, relativePath);
                 if (customFile && [[NSFileManager defaultManager] fileExistsAtPath:customFile]) {
-                    HLog(@"[HynisLoader] ✅ Pack: %@", customFile);
+                    HLog(@"[%s] Loading file: %@", HL_NAME, customFile);
                     return orig_fopen([customFile UTF8String], mode);
                 }
             }
@@ -304,8 +299,7 @@ static void buildPackRootCache(void) {
         rendererPackIds = rendererIds;
         [gResolvedRendererPathCache removeAllObjects];
     }
-    HLog(@"[HynisLoader] Cache built: %lu ids (%lu with renderer)",
-          (unsigned long)cache.count, (unsigned long)rendererIds.count);
+    HLog(@"[%s] Cache built: %lu ids (%lu with renderer)", HL_NAME, (unsigned long)cache.count, (unsigned long)rendererIds.count);
 }
 
 static NSString* findPackRoot(NSString* packId) {
@@ -364,7 +358,6 @@ static NSString* findFileInPack(NSString* packId, NSString* subpack, NSString* r
         if ([cachedResolved isKindOfClass:[NSString class]] && [fm fileExistsAtPath:(NSString *)cachedResolved]) {
             return (NSString *)cachedResolved;
         }
-        // Stale entry (e.g. temp got wiped); fall through and recompute.
     }
     
     for (NSDictionary *pack in activePacks) {
@@ -380,7 +373,7 @@ static NSString* findFileInPack(NSString* packId, NSString* subpack, NSString* r
         NSString *packRoot = findPackRoot(pid);
         if (!packRoot) continue;
         
-        // archive pack (.zip/.mcpack)
+        // archive pack (zip or mcpack)
         if (isArchivePack(packRoot)) {
             if (![sp isEqualToString:@"default"]) {
                 NSString *subpackRelative = [NSString stringWithFormat:@"subpacks/%@/%@", sp, relativePath];
@@ -503,7 +496,6 @@ static void showLoadingBanner(void) {
     }
     if (!gameWindow) return;
 
-    // Attach to the window's CALayer, not the MTKView's CAMetalLayer.
     UIView *hostView = gameWindow;
     CALayer *hostLayer = gameWindow.layer;
 
@@ -651,9 +643,9 @@ static void showLoadingBanner(void) {
     rebind_symbols(&fopen_rebinding, 1);
     
     if (orig_fopen) {
-        HLog(@"[HynisLoader] ✅ fopen hooked successfully");
+        HLog(@"[%s] fopen hooked successfully.", HL_NAME);
     } else {
-        HLog(@"[HynisLoader] ❌ Failed to hook fopen");
+        HLog(@"[%s] Error: Failed to hook fopen.", HL_NAME);
     }
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
