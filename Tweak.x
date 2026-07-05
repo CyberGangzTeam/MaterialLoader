@@ -268,8 +268,9 @@ static void buildPackRootCache(void) {
             hasRenderer = archivePackHasRenderer(fullPath);
         } else {
             NSString *manifestPath = [fullPath stringByAppendingPathComponent:@"manifest.json"];
-            NSData *data = [NSData dataWithContentsOfFile:manifestPath];
-            if (data) {
+            NSString *jsonString = [NSString stringWithContentsOfFile:manifestPath encoding:NSWindowsCP1252StringEncoding error:nil];
+            if (jsonString) {
+                NSData *data = [jsonString dataUsingEncoding:NSUTF8StringEncoding];
                 manifest = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
             }
             hasRenderer = directoryPackHasRenderer(fullPath);
