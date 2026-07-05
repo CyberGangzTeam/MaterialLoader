@@ -1,8 +1,8 @@
 Package: com.congcq.hynisloader
 Name: HynisLoader
-Version: 1.4.1
+Version: 1.4.2
 Architecture: iphoneos-arm
-Description: MCBE tweak
+Description: Minecraft: Bedrock Edition tweak for iOS device that allow load RenderDragon Shader from Global Resource Packs.
 Maintainer: congcq
 Author: congcq
 Section: Tweaks
