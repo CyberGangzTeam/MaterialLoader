@@ -2,7 +2,7 @@
 
 **HynisLoader** là một tinh chỉnh jailbreak cho iOS giúp cho Minecraft: Bedrock edition load toàn bộ thư mục `renderer` có trong resource pack, hoạt động tương tự Draco Injector trên Android.
 
-Tinh chỉnh hoạt động với **tất cả phiên bản Minecraft sử dụng RenderDragon engine**.
+Tinh chỉnh hoạt động với **tất cả phiên bản Minecraft sử dụng RenderDragon engine (1.18.30 - mới nhất)**.
 
 ## Cách tinh chỉnh này hoạt động
 
