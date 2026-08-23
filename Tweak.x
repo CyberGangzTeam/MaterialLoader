@@ -633,6 +633,11 @@ static void showLoadingBanner(void) {
     });
 }
 
+static void murgiSaysHello(void) {
+    HLog("[%s] Powered by rice!", HL_NAME);
+    showLoadingBanner();
+}
+
 %ctor {
     gPackCacheQueue = dispatch_queue_create("com.hynisloader.packcache", DISPATCH_QUEUE_CONCURRENT);
     gResolvedRendererPathCache = [[NSMutableDictionary alloc] init];
@@ -652,6 +657,6 @@ static void showLoadingBanner(void) {
     }
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        showLoadingBanner();
+        murgiSaysHello();
     });
 }
