@@ -44,6 +44,11 @@ static NSString* getResourcePacksPath(void) {
     return [docPath stringByAppendingPathComponent:@"games/com.mojang/resource_packs"];
 }
 
+static NSString* getDevelopmentResourcePacksPath(void) {
+    NSString *docPath = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents"];
+    return [docPath stringByAppendingPathComponent:@"games/com.mojang/development_resource_packs"];
+}
+
 static NSString* getGlobalPacksPath(void) {
     NSString *docPath = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents"];
     return [docPath stringByAppendingPathComponent:@"games/com.mojang/minecraftpe/global_resource_packs.json"];
@@ -208,85 +213,105 @@ static BOOL archivePackHasRenderer(NSString *archivePath) {
 
 static void buildPackRootCache(void) {
     NSString *resPacks = getResourcePacksPath();
+    NSString *devResPacks = getDevelopmentResourcePacksPath();
+
     NSFileManager *fm = [NSFileManager defaultManager];
     NSMutableDictionary *cache = [NSMutableDictionary dictionary];
     NSMutableSet<NSString *> *rendererIds = [NSMutableSet set];
-    
-    NSArray *rootContents = [fm contentsOfDirectoryAtPath:resPacks error:nil];
-    if (!rootContents) {
-        if (gPackCacheQueue) {
-            dispatch_barrier_async(gPackCacheQueue, ^{
-                packRootCache = cache;
-                rendererPackIds = rendererIds;
-                [gResolvedRendererPathCache removeAllObjects];
-            });
-        } else {
-            packRootCache = cache;
-            rendererPackIds = rendererIds;
-            [gResolvedRendererPathCache removeAllObjects];
+
+    NSArray<NSString *> *rootPaths = @[resPacks, devResPacks];
+
+    for (NSString *rootPath in rootPaths) {
+        NSArray *rootContents = [fm contentsOfDirectoryAtPath:rootPath error:nil];
+
+        if (!rootContents) {
+            continue;
         }
-        return;
-    }
-    
-    NSMutableArray *candidates = [NSMutableArray array];
-    
-    for (NSString *item in rootContents) {
-        NSString *itemPath = [resPacks stringByAppendingPathComponent:item];
-        BOOL isDir = NO;
-        [fm fileExistsAtPath:itemPath isDirectory:&isDir];
-        
-        if (isDir) {
-            [candidates addObject:item];
-            for (NSString *sub in [fm contentsOfDirectoryAtPath:itemPath error:nil]) {
-                NSString *subPath = [itemPath stringByAppendingPathComponent:sub];
-                if ([fm fileExistsAtPath:subPath isDirectory:&isDir] && isDir) {
-                    [candidates addObject:[NSString stringWithFormat:@"%@/%@", item, sub]];
+
+        NSMutableArray *candidates = [NSMutableArray array];
+
+        for (NSString *item in rootContents) {
+            NSString *itemPath = [rootPath stringByAppendingPathComponent:item];
+
+            BOOL isDir = NO;
+            [fm fileExistsAtPath:itemPath isDirectory:&isDir];
+
+            if (isDir) {
+                [candidates addObject:item];
+
+                for (NSString *sub in [fm contentsOfDirectoryAtPath:itemPath error:nil]) {
+                    NSString *subPath = [itemPath stringByAppendingPathComponent:sub];
+
+                    BOOL subIsDir = NO;
+                    if ([fm fileExistsAtPath:subPath isDirectory:&subIsDir] && subIsDir) {
+                        [candidates addObject:[NSString stringWithFormat:@"%@/%@", item, sub]];
+                    }
+                }
+            } else {
+                if (isArchivePack(itemPath)) {
+                    [candidates addObject:item];
                 }
             }
-        } else {
-            if (isArchivePack(itemPath)) {
-                [candidates addObject:item];
-            }
         }
-    }
-    
-    for (NSString *candidate in candidates) {
-        NSString *fullPath = [resPacks stringByAppendingPathComponent:candidate];
-        NSDictionary *manifest = nil;
-        BOOL hasRenderer = NO;
-        
-        if (isArchivePack(fullPath)) {
-            NSData *manifestData = readFileFromZip(fullPath, @"manifest.json");
-            if (manifestData) {
-                manifest = [NSJSONSerialization JSONObjectWithData:manifestData options:0 error:nil];
+
+        for (NSString *candidate in candidates) {
+            NSString *fullPath =
+                [rootPath stringByAppendingPathComponent:candidate];
+
+            NSDictionary *manifest = nil;
+            BOOL hasRenderer = NO;
+
+            if (isArchivePack(fullPath)) {
+                NSData *manifestData =
+                    readFileFromZip(fullPath, @"manifest.json");
+
+                if (manifestData) {
+                    manifest = [NSJSONSerialization JSONObjectWithData:manifestData options:0 error:nil];
+                }
+
+                hasRenderer = archivePackHasRenderer(fullPath);
+            } else {
+                NSString *manifestPath = [fullPath stringByAppendingPathComponent:@"manifest.json"];
+
+                NSString *jsonString = [NSString stringWithContentsOfFile:manifestPath encoding:NSUTF8StringEncoding error:nil];
+
+                if (!jsonString) {
+                    jsonString = [NSString stringWithContentsOfFile:manifestPath encoding:NSWindowsCP1252StringEncoding error:nil];
+                }
+
+                if (jsonString) {
+                    NSData *data = [jsonString dataUsingEncoding:NSUTF8StringEncoding];
+
+                    manifest = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                }
+
+                hasRenderer = directoryPackHasRenderer(fullPath);
             }
-            hasRenderer = archivePackHasRenderer(fullPath);
-        } else {
-            NSString *manifestPath = [fullPath stringByAppendingPathComponent:@"manifest.json"];
-            NSString *jsonString = [NSString stringWithContentsOfFile:manifestPath encoding:NSUTF8StringEncoding error:nil];
-            if (!jsonString) {
-                jsonString = [NSString stringWithContentsOfFile:manifestPath encoding:NSWindowsCP1252StringEncoding error:nil];
+
+            if (!manifest) {
+                continue;
             }
-            if (jsonString) {
-                NSData *data = [jsonString dataUsingEncoding:NSUTF8StringEncoding];
-                manifest = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+
+            NSString *uuid = manifest[@"header"][@"uuid"];
+
+            if (uuid) {
+                cache[uuid] = fullPath;
+
+                if (hasRenderer) {
+                    [rendererIds addObject:uuid];
+                }
             }
-            hasRenderer = directoryPackHasRenderer(fullPath);
-        }
-        
-        if (!manifest) continue;
-        
-        NSString *uuid = manifest[@"header"][@"uuid"];
-        if (uuid) {
-            cache[uuid] = fullPath;
-            if (hasRenderer) [rendererIds addObject:uuid];
-        }
-        
-        for (NSDictionary *mod in manifest[@"modules"]) {
-            NSString *modUuid = mod[@"uuid"];
-            if (modUuid) {
-                cache[modUuid] = fullPath;
-                if (hasRenderer) [rendererIds addObject:modUuid];
+
+            for (NSDictionary *mod in manifest[@"modules"]) {
+                NSString *modUuid = mod[@"uuid"];
+
+                if (modUuid) {
+                    cache[modUuid] = fullPath;
+
+                    if (hasRenderer) {
+                        [rendererIds addObject:modUuid];
+                    }
+                }
             }
         }
     }
